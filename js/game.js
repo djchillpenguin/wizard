@@ -26,9 +26,85 @@ let wizardWorldCollider;
 let wizardSpeed = 200;
 let cursors;
 let up, down, right, left;
-let fireballSpeed = 400;
-let fireballOffsetX = 40;
-let fireballOffsetY = 30;
+let lastFired = 0;
+
+//Fireball class for creating the fireballs the wizard shoots
+
+let Fireball = new Phaser.Class({
+
+    Extends: Phaser.Physics.Arcade.Sprite,
+
+    initialize:
+
+    function Fireball (scene)
+    {
+        Phaser.Physics.Arcade.Sprite.call(this, scene, 0, 0, 'fireball');
+
+        this.speed = 400;
+        this.lifespan = 2000;
+        this.offsetX = 40;
+        this.offsetY = 30;
+        this.cooldown = 400;
+    },
+
+    shoot: function (wizard, mouseX, mouseY)
+    {
+        this.lifespan = 2000;
+
+        this.setActive(true);
+        this.setVisible(true);
+        this.setPosition(wizard.x - this.offsetX, wizard.y - this.offsetY);
+
+        x = mouseX - (400 - this.offsetX);
+        y = mouseY - (300 - this.offsetY);
+        velX = this.findXshotVelocity(x, y);
+        velY = this.findYshotVelocity(x, y);
+        this.setVelocityX(velX);
+        this.setVelocityY(velY);
+        this.anims.play('shoot', true);
+    },
+
+    update: function (time, delta)
+    {
+        this.lifespan -= delta;
+
+        if (this.lifespan <= 0)
+        {
+            this.kill();
+        }
+    },
+
+    kill: function ()
+    {
+        this.setActive(false);
+        this.setVisible(false);
+        this.body.stop();
+    },
+
+    findXshotVelocity: function (x, y) {
+        let angle;
+        angle = Math.atan(Math.abs(y) / Math.abs(x));
+
+        if (x < 0) {
+            return (this.speed * Math.cos(angle)) * -1;
+        }
+        else {
+            return this.speed * Math.cos(angle);
+        }
+    },
+
+    findYshotVelocity: function(x, y) {
+        let angle;
+        angle = Math.atan(Math.abs(y) / Math.abs(x));
+
+        if (y < 0) {
+            return (this.speed * Math.sin(angle)) * -1;
+        }
+        else {
+            return this.speed * Math.sin(angle);
+        }
+    }
+});
 
 function preload ()
 {
@@ -51,8 +127,11 @@ function create ()
 
     wizard = this.physics.add.sprite(400, 300, 'wizard').setSize(60, 40).setOffset(0, 40);
 
-    fireball = this.physics.add.sprite(370, 285, 'fireball');
-    fireball.setAlpha(0);
+    fireballs = this.physics.add.group({
+        classType: Fireball,
+        maxSize: 10,
+        runChildUpdate: true
+    });
 
     this.physics.add.collider(wizard, worldLayer);
 
@@ -112,7 +191,7 @@ function create ()
     camera.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
 }
 
-function update ()
+function update (time, delta)
 {
     if(isLeft() && isUp()) {
         wizard.setVelocityX(Math.cos(Math.PI / 4) * wizardSpeed * -1);
@@ -157,7 +236,7 @@ function update ()
     else {
         wizard.setVelocityX(0);
         wizard.setVelocityY(0);
-        if(fireball.isShot) {
+        if(lastFired > time) {
             wizard.anims.play('cast', true);
         }
         else {
@@ -165,54 +244,16 @@ function update ()
         }
     }
 
-    if (this.input.activePointer.isDown && !fireball.isShot) {
-        fireball.setAlpha(1);
-        x = this.input.activePointer.x - (400 - fireballOffsetX);
-        y = this.input.activePointer.y - (300 - fireballOffsetY);
-        shotX = fireball.x;
-        shotY = fireball.y;
-        fireball.setVelocityX(findXshotVelocity(x, y));
-        fireball.setVelocityY(findYshotVelocity(x, y));
-        fireball.isShot = true;
-        fireball.anims.play('shoot', true);
-        wizard.anims.play('cast', true);
-    }
-    else if (fireball.isShot){
-        if(Math.abs(fireball.x - shotX) > 500 || Math.abs(fireball.y - shotY) > 500) {
-            fireball.setAlpha(0);
-            fireball.x = wizard.x;
-            fireball.y = wizard.y;
-            fireball.isShot = false;
+    if (this.input.activePointer.isDown && time > lastFired) {
+        var fireball = fireballs.get();
+
+        if (fireball)
+        {
+            fireball.shoot(wizard, this.input.activePointer.x, this.input.activePointer.y);
+
+            lastFired = time + fireball.cooldown;
         }
-    }
-    else {
-        fireball.setAlpha(0);
-        fireball.x = wizard.x - fireballOffsetX;
-        fireball.y = wizard.y - fireballOffsetY;
-    }
-}
-
-function findXshotVelocity(x, y) {
-    let angle;
-    angle = Math.atan(Math.abs(y) / Math.abs(x));
-
-    if (x < 0) {
-        return (fireballSpeed * Math.cos(angle)) * -1;
-    }
-    else {
-        return fireballSpeed * Math.cos(angle);
-    }
-}
-
-function findYshotVelocity(x, y) {
-    let angle;
-    angle = Math.atan(Math.abs(y) / Math.abs(x));
-
-    if (y < 0) {
-        return (fireballSpeed * Math.sin(angle)) * -1;
-    }
-    else {
-        return fireballSpeed * Math.sin(angle);
+        wizard.anims.play('cast', true);
     }
 }
 
