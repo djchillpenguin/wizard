@@ -27,6 +27,7 @@ let wizardSpeed = 200;
 let cursors;
 let up, down, right, left;
 let lastFired = 0;
+let map;
 
 //Fireball class for creating the fireballs the wizard shoots
 
@@ -55,13 +56,37 @@ let Fireball = new Phaser.Class({
         this.setVisible(true);
         this.setPosition(wizard.x - this.offsetX, wizard.y - this.offsetY);
 
-        x = mouseX - (400 - this.offsetX);
-        y = mouseY - (300 - this.offsetY);
+        if (wizard.x < 400) {
+            x = mouseX - (wizard.x - this.offsetX);
+        }
+        else if (wizard.x > (map.widthInPixels - 400)) {
+            x = mouseX - (400 + (map.widthInPixels - wizard.x - this.offsetX));
+        }
+        else {
+            x = mouseX - (400 - this.offsetX);
+        }
+
+        if (wizard.y < 300) {
+            y = mouseY - (wizard.y - this.offsetY);
+        }
+        else if (wizard.y > (map.heightInPixels - 300)) {
+            y = mouseY - (300 + (map.heightInPixels - wizard.y - this.offsetY));
+        }
+        else {
+            y = mouseY - (300 - this.offsetY);
+        }
+
+        //x = mouseX - (400 - this.offsetX);
+        //y = mouseY - (300 - this.offsetY);
+
         velX = this.findXshotVelocity(x, y);
         velY = this.findYshotVelocity(x, y);
         this.setVelocityX(velX);
         this.setVelocityY(velY);
         this.anims.play('shoot', true);
+        console.log('wizardX =', wizard.x, 'mouseX =', mouseX);
+        console.log('wizardY =', wizard.y, 'mouseY =', mouseY);
+        console.log('X =', x, 'Y =', y);
     },
 
     update: function (time, delta)
@@ -106,18 +131,23 @@ let Fireball = new Phaser.Class({
     }
 });
 
+/*let Goblin = new Phaser.Class({
+
+});*/
+
 function preload ()
 {
     this.load.image('tiles', 'assets/dungeonTiles.png');
     this.load.tilemapTiledJSON('map', 'assets/map2.json');
-    this.load.spritesheet('wizard', 'assets/wizard.png', { frameWidth: 72, frameHeight: 80 });
+    this.load.spritesheet('wizard', 'assets/wizard.png', { frameWidth: 96, frameHeight: 96 });
     this.load.spritesheet('fireball', 'assets/fireball.png', { frameWidth: 32, frameHeight: 32 });
+    this.load.spritesheet('goblin', 'assets/goblin.png', { frameWidth: 80, frameHeight: 80});
     this.load.audio('dungeon', 'music/dungeon.mp3');
 }
 
 function create ()
 {
-    const map = this.make.tilemap({ key: 'map' });
+    map = this.make.tilemap({ key: 'map' });
     const tileset = map.addTilesetImage('dungeonTiles', 'tiles');
     const belowLayer = map.createStaticLayer('Below Layer', tileset, 0, 0);
     const worldLayer = map.createStaticLayer('World Layer', tileset, 0, 0);
@@ -125,7 +155,8 @@ function create ()
     worldLayer.setCollisionByProperty({ collides: true });
 
 
-    wizard = this.physics.add.sprite(400, 300, 'wizard').setSize(60, 40).setOffset(0, 40);
+    wizard = this.physics.add.sprite(400, 300, 'wizard').setSize(52, 76).setOffset(20, 20);
+    goblin = this.physics.add.sprite(600, 200, 'goblin').setSize(80, 80).setOffset(0, 0);
 
     fireballs = this.physics.add.group({
         classType: Fireball,
@@ -168,14 +199,14 @@ function create ()
         frames: [ { key: 'wizard', frame: 8 } , {key: 'wizard', frame: 1 } ],
         frameRate: .01,
         repeat: -1
-    })
+    });
 
     this.anims.create({
         key: 'shoot',
         frames: this.anims.generateFrameNumbers('fireball', { start: 0, end: 2 }),
         frameRate: 8,
         repeat: 0
-    })
+    });
 
     cursors = this.input.keyboard.createCursorKeys();
     up = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
@@ -184,7 +215,7 @@ function create ()
     right = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
 
     let music = this.sound.add('dungeon');
-    music.play();
+    //music.play();
 
     const camera = this.cameras.main;
     camera.startFollow(wizard);
