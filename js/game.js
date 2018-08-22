@@ -60,7 +60,7 @@ let Fireball = new Phaser.Class({
             x = mouseX - (wizard.x - this.offsetX);
         }
         else if (wizard.x > (map.widthInPixels - 400)) {
-            x = mouseX - (400 + (map.widthInPixels - wizard.x - this.offsetX));
+            x = mouseX - (800 - (map.widthInPixels - wizard.x - this.offsetX));
         }
         else {
             x = mouseX - (400 - this.offsetX);
@@ -70,7 +70,7 @@ let Fireball = new Phaser.Class({
             y = mouseY - (wizard.y - this.offsetY);
         }
         else if (wizard.y > (map.heightInPixels - 300)) {
-            y = mouseY - (300 + (map.heightInPixels - wizard.y - this.offsetY));
+            y = mouseY - (600 - (map.heightInPixels - wizard.y - this.offsetY));
         }
         else {
             y = mouseY - (300 - this.offsetY);
