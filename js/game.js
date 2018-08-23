@@ -8,7 +8,7 @@ var config = {
         default: 'arcade',
         arcade: {
             gravity: { y: 0 },
-            debug: true,
+            debug: false,
             fps: 60
         }
     },
@@ -23,7 +23,6 @@ var game = new Phaser.Game(config);
 
 //global variables
 let wizard;
-let wizardWorldCollider;
 let wizardSpeed = 200;
 let cursors;
 let up, down, right, left;
@@ -157,6 +156,9 @@ let Goblin = new Phaser.Class({
         this.setActive(true);
         this.setVisible(true);
         this.setPosition(x, y);
+        this.body.enable = true;
+        this.body.setSize(72, 72);
+        this.body.setOffset(0, 8);
     },
 
     update: function (time, delta)
@@ -170,6 +172,7 @@ let Goblin = new Phaser.Class({
         this.setActive(false);
         this.setVisible(false);
         this.body.stop();
+        this.body.enable = false;
     },
 
     findXVelocity: function (x, y) {
@@ -199,6 +202,8 @@ let Goblin = new Phaser.Class({
     }
 });
 
+//Scene functions
+
 function preload ()
 {
     this.load.image('tiles', 'assets/dungeonTiles.png');
@@ -220,7 +225,9 @@ function create ()
 
 
     wizard = this.physics.add.sprite(400, 300, 'wizard').setSize(52, 76).setOffset(20, 20);
-    //goblin = this.physics.add.sprite(600, 200, 'goblin').setSize(72, 72).setOffset(0, 8);
+    wizard.moveShotDelay = 200;
+    wizard.shotTime = 0;
+    wizard.hasShot = false;
 
     goblins = this.physics.add.group({
         classType: Goblin,
@@ -235,7 +242,7 @@ function create ()
     });
 
     this.physics.add.collider(wizard, worldLayer);
-    //this.physics.add.collider(fireballs, worldLayer);
+    this.physics.add.collider(fireballs, worldLayer, fireballVsWorld);
     this.physics.add.collider(goblins, worldLayer);
 
     //wizard animations
@@ -285,21 +292,21 @@ function create ()
     this.anims.create({
         key: 'goblinIdle',
         frames: [ { key: 'goblin', frame: 0 } ],
-        frameRate: 4,
+        frameRate: 3,
         repeat: 0
     });
 
     this.anims.create({
         key: 'goblinRight',
         frames: this.anims.generateFrameNumbers('goblin', { start: 1, end: 2 }),
-        frameRate: 4,
+        frameRate: 3,
         repeat: -1
     });
 
     this.anims.create({
         key: 'goblinLeft',
         frames: this.anims.generateFrameNumbers('goblin', { start: 3, end: 4 }),
-        frameRate: 4,
+        frameRate: 3,
         repeat: -1
     });
 
@@ -332,58 +339,67 @@ function update (time, delta)
         goblin.spawn(Math.floor((Math.random() * 100) + 499), Math.floor((Math.random() * 100) + 399));
     }
 
-    if(isLeft() && isUp()) {
-        wizard.setVelocityX(Math.cos(Math.PI / 4) * wizardSpeed * -1);
-        wizard.setVelocityY(Math.sin(Math.PI / 4) * wizardSpeed * -1);
-        wizard.anims.play('left', true);
-    }
-    else if(isLeft() && isDown()) {
-        wizard.setVelocityX(Math.cos(Math.PI / 4) * wizardSpeed * -1);
-        wizard.setVelocityY(Math.sin(Math.PI / 4) * wizardSpeed);
-        wizard.anims.play('left', true);
-    }
-    else if(isRight() && isUp()) {
-        wizard.setVelocityX(Math.cos(Math.PI / 4) * wizardSpeed);
-        wizard.setVelocityY(Math.sin(Math.PI / 4) * wizardSpeed * -1);
-        wizard.anims.play('right', true);
-    }
-    else if(isRight() && isDown()) {
-        wizard.setVelocityX(Math.cos(Math.PI / 4) * wizardSpeed);
-        wizard.setVelocityY(Math.sin(Math.PI / 4) * wizardSpeed);
-        wizard.anims.play('right', true);
-    }
-    else if(isLeft()) {
-        wizard.setVelocityX(wizardSpeed * -1);
-        wizard.setVelocityY(0);
-        wizard.anims.play('left', true);
-    }
-    else if(isRight()) {
-        wizard.setVelocityX(wizardSpeed);
-        wizard.setVelocityY(0);
-        wizard.anims.play('right', true);
-    }
-    else if(isUp()) {
-        wizard.setVelocityY(wizardSpeed * -1);
-        wizard.setVelocityX(0);
-        wizard.anims.play('up', true);
-    }
-    else if(isDown()) {
-        wizard.setVelocityY(wizardSpeed);
-        wizard.setVelocityX(0);
-        wizard.anims.play('down', true);
-    }
-    else {
-        wizard.setVelocityX(0);
-        wizard.setVelocityY(0);
-        if(lastFired > time) {
-            wizard.anims.play('cast', true);
+    if (!wizard.hasShot)
+    {
+        if(isLeft() && isUp()) {
+            wizard.setVelocityX(Math.cos(Math.PI / 4) * wizardSpeed * -1);
+            wizard.setVelocityY(Math.sin(Math.PI / 4) * wizardSpeed * -1);
+            wizard.anims.play('left', true);
+        }
+        else if(isLeft() && isDown()) {
+            wizard.setVelocityX(Math.cos(Math.PI / 4) * wizardSpeed * -1);
+            wizard.setVelocityY(Math.sin(Math.PI / 4) * wizardSpeed);
+            wizard.anims.play('left', true);
+        }
+        else if(isRight() && isUp()) {
+            wizard.setVelocityX(Math.cos(Math.PI / 4) * wizardSpeed);
+            wizard.setVelocityY(Math.sin(Math.PI / 4) * wizardSpeed * -1);
+            wizard.anims.play('right', true);
+        }
+        else if(isRight() && isDown()) {
+            wizard.setVelocityX(Math.cos(Math.PI / 4) * wizardSpeed);
+            wizard.setVelocityY(Math.sin(Math.PI / 4) * wizardSpeed);
+            wizard.anims.play('right', true);
+        }
+        else if(isLeft()) {
+            wizard.setVelocityX(wizardSpeed * -1);
+            wizard.setVelocityY(0);
+            wizard.anims.play('left', true);
+        }
+        else if(isRight()) {
+            wizard.setVelocityX(wizardSpeed);
+            wizard.setVelocityY(0);
+            wizard.anims.play('right', true);
+        }
+        else if(isUp()) {
+            wizard.setVelocityY(wizardSpeed * -1);
+            wizard.setVelocityX(0);
+            wizard.anims.play('up', true);
+        }
+        else if(isDown()) {
+            wizard.setVelocityY(wizardSpeed);
+            wizard.setVelocityX(0);
+            wizard.anims.play('down', true);
         }
         else {
+            wizard.setVelocityX(0);
+            wizard.setVelocityY(0);
             wizard.anims.play('down', true);
         }
     }
 
+    if(wizard.hasShot === true && (time - wizard.shotTime) > wizard.moveShotDelay)
+    {
+        wizard.hasShot = false;
+    }
+
     if (this.input.activePointer.isDown && time > lastFired) {
+        wizard.setVelocityX(0);
+        wizard.setVelocityY(0);
+        wizard.hasShot = true;
+        wizard.shotTime = time;
+        wizard.anims.play('cast', true);
+
         var fireball = fireballs.get();
 
         if (fireball)
@@ -408,6 +424,11 @@ function enemyHitCallback(enemyHit, spellHit)
         spellHit.kill();
         goblinCount--;
     }
+}
+
+function fireballVsWorld(fireball)
+{
+    fireball.kill();
 }
 
 function isUp () {
