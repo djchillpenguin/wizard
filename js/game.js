@@ -8,7 +8,7 @@ var config = {
         default: 'arcade',
         arcade: {
             gravity: { y: 0 },
-            debug: false,
+            debug: true,
             fps: 60
         }
     },
@@ -51,13 +51,13 @@ let Fireball = new Phaser.Class({
         this.lifespan = 2000;
         this.offsetX = 40;
         this.offsetY = 30;
-        this.cooldown = 400;
+        this.cooldown = 300;
     },
 
     shoot: function (wizard, mouseX, mouseY)
     {
         this.lifespan = 2000;
-
+        this.body.enable = true;
         this.setActive(true);
         this.setVisible(true);
         this.setPosition(wizard.x - this.offsetX, wizard.y - this.offsetY);
@@ -110,6 +110,7 @@ let Fireball = new Phaser.Class({
         this.setActive(false);
         this.setVisible(false);
         this.body.stop();
+        this.body.enable = false;
     },
 
     findXshotVelocity: function (x, y) {
@@ -324,12 +325,11 @@ function update (time, delta)
         respawning = true;
     }
 
-    if(goblinCount < 1 && (time - lastGoblinSpawn) > goblinSpawnTime) {
+    if(goblinCount === 0 && (time - lastGoblinSpawn) > goblinSpawnTime) {
         goblinCount++;
         respawning = false;
         goblin = goblins.get();
         goblin.spawn(Math.floor((Math.random() * 100) + 499), Math.floor((Math.random() * 100) + 399));
-        goblin.anims.play('goblinLeft', true);
     }
 
     if(isLeft() && isUp()) {
@@ -389,7 +389,10 @@ function update (time, delta)
         if (fireball)
         {
             fireball.shoot(wizard, this.input.activePointer.x, this.input.activePointer.y);
-            this.physics.add.collider(goblin, fireball, enemyHitCallback);
+
+            if(goblinCount > 0) {
+            this.physics.add.collider(goblins, fireball, enemyHitCallback);
+            }
 
             lastFired = time + fireball.cooldown;
         }
