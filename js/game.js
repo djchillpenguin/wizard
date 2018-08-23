@@ -8,7 +8,8 @@ var config = {
         default: 'arcade',
         arcade: {
             gravity: { y: 0 },
-            debug: false
+            debug: false,
+            fps: 60
         }
     },
     scene: {
@@ -28,6 +29,11 @@ let cursors;
 let up, down, right, left;
 let lastFired = 0;
 let map;
+let camera;
+let goblinCount = 0;
+let lastGoblinSpawn = 0;
+let goblinSpawnTime = 2000;
+let respawning = false;
 
 //Fireball class for creating the fireballs the wizard shoots
 
@@ -76,17 +82,17 @@ let Fireball = new Phaser.Class({
             y = mouseY - (300 - this.offsetY);
         }
 
-        //x = mouseX - (400 - this.offsetX);
-        //y = mouseY - (300 - this.offsetY);
+        //x = mouseX - ((camera.x - wizard.x) + 400 - this.offsetX);
+        //y = mouseY - ((camera.y - wizard.y) + 300 - this.offsetY);
 
         velX = this.findXshotVelocity(x, y);
         velY = this.findYshotVelocity(x, y);
         this.setVelocityX(velX);
         this.setVelocityY(velY);
         this.anims.play('shoot', true);
-        console.log('wizardX =', wizard.x, 'mouseX =', mouseX);
-        console.log('wizardY =', wizard.y, 'mouseY =', mouseY);
-        console.log('X =', x, 'Y =', y);
+        /*console.log('wizardX =', wizard.x, 'mouseX =', mouseX, 'cameraX =', camera.x);
+        console.log('wizardY =', wizard.y, 'mouseY =', mouseY, 'cameraY =', camera.y);
+        console.log('X =', x, 'Y =', y);*/
     },
 
     update: function (time, delta)
@@ -131,9 +137,66 @@ let Fireball = new Phaser.Class({
     }
 });
 
-/*let Goblin = new Phaser.Class({
+//Goblin class
 
-});*/
+let Goblin = new Phaser.Class({
+
+    Extends: Phaser.Physics.Arcade.Sprite,
+
+    initialize:
+
+    function Goblin (scene)
+    {
+        Phaser.Physics.Arcade.Sprite.call(this, scene, 0, 0, 'goblin');
+        this.speed = 100;
+    },
+
+    spawn: function (x, y)
+    {
+        this.setActive(true);
+        this.setVisible(true);
+        this.setPosition(x, y);
+    },
+
+    update: function (time, delta)
+    {
+        this.setVelocityX(this.findXVelocity(wizard.x - this.x, wizard.y - this.x));
+        this.setVelocityY(this.findYVelocity(wizard.x - this.x, wizard.y - this.y));
+    },
+
+    kill: function ()
+    {
+        this.setActive(false);
+        this.setVisible(false);
+        this.body.stop();
+    },
+
+    findXVelocity: function (x, y) {
+        let angle;
+        angle = Math.atan(Math.abs(y) / Math.abs(x));
+
+        if (x < 0) {
+            this.anims.play('goblinRight', true);
+            return (this.speed * Math.cos(angle)) * -1;
+        }
+        else {
+            this.anims.play('goblinLeft', true);
+            return this.speed * Math.cos(angle);
+        }
+    },
+
+    findYVelocity: function(x, y) {
+        let angle;
+        angle = Math.atan(Math.abs(y) / Math.abs(x));
+
+        if (y < 0) {
+            return (this.speed * Math.sin(angle)) * -1;
+        }
+        else {
+            return this.speed * Math.sin(angle);
+        }
+    }
+});
 
 function preload ()
 {
@@ -156,7 +219,13 @@ function create ()
 
 
     wizard = this.physics.add.sprite(400, 300, 'wizard').setSize(52, 76).setOffset(20, 20);
-    goblin = this.physics.add.sprite(600, 200, 'goblin').setSize(80, 80).setOffset(0, 0);
+    //goblin = this.physics.add.sprite(600, 200, 'goblin').setSize(72, 72).setOffset(0, 8);
+
+    goblins = this.physics.add.group({
+        classType: Goblin,
+        maxSize: 20,
+        runChildUpdate: true
+    });
 
     fireballs = this.physics.add.group({
         classType: Fireball,
@@ -165,7 +234,10 @@ function create ()
     });
 
     this.physics.add.collider(wizard, worldLayer);
+    //this.physics.add.collider(fireballs, worldLayer);
+    this.physics.add.collider(goblins, worldLayer);
 
+    //wizard animations
     this.anims.create({
         key: 'down',
         frames: this.anims.generateFrameNumbers('wizard', { start: 0, end: 1 }),
@@ -208,6 +280,28 @@ function create ()
         repeat: 0
     });
 
+    //goblin animations
+    this.anims.create({
+        key: 'goblinIdle',
+        frames: [ { key: 'goblin', frame: 0 } ],
+        frameRate: 4,
+        repeat: 0
+    });
+
+    this.anims.create({
+        key: 'goblinRight',
+        frames: this.anims.generateFrameNumbers('goblin', { start: 1, end: 2 }),
+        frameRate: 4,
+        repeat: -1
+    });
+
+    this.anims.create({
+        key: 'goblinLeft',
+        frames: this.anims.generateFrameNumbers('goblin', { start: 3, end: 4 }),
+        frameRate: 4,
+        repeat: -1
+    });
+
     cursors = this.input.keyboard.createCursorKeys();
     up = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
     down = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S);
@@ -217,13 +311,27 @@ function create ()
     let music = this.sound.add('dungeon');
     //music.play();
 
-    const camera = this.cameras.main;
+    camera = this.cameras.main;
     camera.startFollow(wizard);
     camera.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
 }
 
 function update (time, delta)
 {
+    if(goblinCount === 0 && respawning === false)
+    {
+        lastGoblinSpawn = time;
+        respawning = true;
+    }
+
+    if(goblinCount < 1 && (time - lastGoblinSpawn) > goblinSpawnTime) {
+        goblinCount++;
+        respawning = false;
+        goblin = goblins.get();
+        goblin.spawn(Math.floor((Math.random() * 100) + 499), Math.floor((Math.random() * 100) + 399));
+        goblin.anims.play('goblinLeft', true);
+    }
+
     if(isLeft() && isUp()) {
         wizard.setVelocityX(Math.cos(Math.PI / 4) * wizardSpeed * -1);
         wizard.setVelocityY(Math.sin(Math.PI / 4) * wizardSpeed * -1);
@@ -281,10 +389,21 @@ function update (time, delta)
         if (fireball)
         {
             fireball.shoot(wizard, this.input.activePointer.x, this.input.activePointer.y);
+            this.physics.add.collider(goblin, fireball, enemyHitCallback);
 
             lastFired = time + fireball.cooldown;
         }
         wizard.anims.play('cast', true);
+    }
+}
+
+function enemyHitCallback(enemyHit, spellHit)
+{
+    if(spellHit.active === true && spellHit.active === true)
+    {
+        enemyHit.kill();
+        spellHit.kill();
+        goblinCount--;
     }
 }
 
