@@ -33,6 +33,7 @@ let goblinCount = 0;
 let lastGoblinSpawn = 0;
 let goblinSpawnTime = 2000;
 let respawning = false;
+let timedEvent;
 
 //Fireball class for creating the fireballs the wizard shoots
 
@@ -57,6 +58,7 @@ let Fireball = new Phaser.Class({
     {
         this.lifespan = 2000;
         this.body.enable = true;
+        this.setDepth(2);
         this.setActive(true);
         this.setVisible(true);
         this.setPosition(wizard.x - this.offsetX, wizard.y - this.offsetY);
@@ -149,6 +151,7 @@ let Goblin = new Phaser.Class({
     {
         Phaser.Physics.Arcade.Sprite.call(this, scene, 0, 0, 'goblin');
         this.speed = 100;
+        this.isAlive = true;
     },
 
     spawn: function (x, y)
@@ -159,20 +162,41 @@ let Goblin = new Phaser.Class({
         this.body.enable = true;
         this.body.setSize(72, 72);
         this.body.setOffset(0, 8);
+        this.isAlive = true;
+        this.setDepth(1);
     },
 
     update: function (time, delta)
     {
-        this.setVelocityX(this.findXVelocity(wizard.x - this.x, wizard.y - this.x));
-        this.setVelocityY(this.findYVelocity(wizard.x - this.x, wizard.y - this.y));
+        if (this.isAlive)
+        {
+            this.setVelocityX(this.findXVelocity(wizard.x - this.x, wizard.y - this.x));
+            this.setVelocityY(this.findYVelocity(wizard.x - this.x, wizard.y - this.y));
+        }
     },
 
     kill: function ()
     {
-        this.setActive(false);
-        this.setVisible(false);
-        this.body.stop();
+        this.isAlive = false;
+        this.anims.play('goblinDie', true);
+        this.setDepth(0);
+        //this.setActive(false);
+        //this.setVisible(false);
+        //this.body.stop();
+
+        timedEvent = this.scene.time.addEvent({
+            delay: 10000,
+            callback: onEvent,
+            callbackScope: this
+        });
+
         this.body.enable = false;
+
+        function onEvent(){
+            this.setActive(false);
+            this.setVisible(false);
+            this.body.stop();
+        }
     },
 
     findXVelocity: function (x, y) {
@@ -180,11 +204,11 @@ let Goblin = new Phaser.Class({
         angle = Math.atan(Math.abs(y) / Math.abs(x));
 
         if (x < 0) {
-            this.anims.play('goblinRight', true);
+            this.anims.play('goblinLeft', true);
             return (this.speed * Math.cos(angle)) * -1;
         }
         else {
-            this.anims.play('goblinLeft', true);
+            this.anims.play('goblinRight', true);
             return this.speed * Math.cos(angle);
         }
     },
@@ -228,6 +252,7 @@ function create ()
     wizard.moveShotDelay = 200;
     wizard.shotTime = 0;
     wizard.hasShot = false;
+    wizard.setDepth(1);
 
     goblins = this.physics.add.group({
         classType: Goblin,
@@ -310,6 +335,13 @@ function create ()
         repeat: -1
     });
 
+    this.anims.create({
+        key: 'goblinDie',
+        frames: this.anims.generateFrameNumbers('goblin', { start: 5, end: 10 }),
+        frameRate: 8,
+        repeat: 0
+    });
+
     cursors = this.input.keyboard.createCursorKeys();
     up = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
     down = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S);
@@ -317,7 +349,7 @@ function create ()
     right = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
 
     let music = this.sound.add('dungeon');
-    //music.play();
+    music.play();
 
     camera = this.cameras.main;
     camera.startFollow(wizard);
