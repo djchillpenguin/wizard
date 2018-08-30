@@ -1,7 +1,7 @@
 var config = {
     type: Phaser.AUTO,
-    width: 800,
-    height: 600,
+    width: 1280,
+    height: 720,
     parent: 'game',
     pixelArt: true,
     physics: {
@@ -11,6 +11,9 @@ var config = {
             debug: false,
             fps: 60
         }
+    },
+    input: {
+        gamepad: true
     },
     scene: {
         preload: preload,
@@ -34,6 +37,9 @@ let lastGoblinSpawn = 0;
 let goblinSpawnTime = 2000;
 let respawning = false;
 let timedEvent;
+let gamepad;
+let lastShotX = 1;
+let lastShotY = 1;
 
 //Fireball class for creating the fireballs the wizard shoots
 
@@ -94,6 +100,31 @@ let Fireball = new Phaser.Class({
         /*console.log('wizardX =', wizard.x, 'mouseX =', mouseX, 'cameraX =', camera.x);
         console.log('wizardY =', wizard.y, 'mouseY =', mouseY, 'cameraY =', camera.y);
         console.log('X =', x, 'Y =', y);*/
+    },
+
+    shootGamepad: function (wizard, shotX, shotY)
+    {
+        this.lifespan = 2000;
+        this.body.enable = true;
+        this.setDepth(2);
+        this.setActive(true);
+        this.setVisible(true);
+        this.setPosition(wizard.x - this.offsetX, wizard.y - this.offsetY);
+
+        if(shotX === 0 && shotY === 0) {
+            shotX = lastShotX;
+            shotY = lastShotY;
+        }
+        else {
+            lastShotX = shotX;
+            lastShotY = shotY;
+        }
+
+        velX = this.findXshotVelocity(shotX, shotY);
+        velY = this.findYshotVelocity(shotX, shotY);
+        this.setVelocityX(velX);
+        this.setVelocityY(velY);
+        this.anims.play('shoot', true);
     },
 
     update: function (time, delta)
@@ -180,9 +211,6 @@ let Goblin = new Phaser.Class({
         this.isAlive = false;
         this.anims.play('goblinDie', true);
         this.setDepth(0);
-        //this.setActive(false);
-        //this.setVisible(false);
-        //this.body.stop();
 
         timedEvent = this.scene.time.addEvent({
             delay: 10000,
@@ -240,6 +268,7 @@ function preload ()
 
 function create ()
 {
+    //create map
     map = this.make.tilemap({ key: 'map' });
     const tileset = map.addTilesetImage('dungeonTiles', 'tiles');
     const belowLayer = map.createStaticLayer('Below Layer', tileset, 0, 0);
@@ -247,28 +276,32 @@ function create ()
 
     worldLayer.setCollisionByProperty({ collides: true });
 
-
+    //create wizard player
     wizard = this.physics.add.sprite(400, 300, 'wizard').setSize(52, 76).setOffset(20, 20);
     wizard.moveShotDelay = 200;
     wizard.shotTime = 0;
     wizard.hasShot = false;
     wizard.setDepth(1);
 
+    //create goblin group
     goblins = this.physics.add.group({
         classType: Goblin,
         maxSize: 20,
         runChildUpdate: true
     });
 
+    //create fireball group
     fireballs = this.physics.add.group({
         classType: Fireball,
         maxSize: 10,
         runChildUpdate: true
     });
 
+    //world colliders
     this.physics.add.collider(wizard, worldLayer);
     this.physics.add.collider(fireballs, worldLayer, fireballVsWorld);
     this.physics.add.collider(goblins, worldLayer);
+    this.physics.add.collider(wizard, goblins);
 
     //wizard animations
     this.anims.create({
@@ -342,14 +375,20 @@ function create ()
         repeat: 0
     });
 
+    //create keyboard buttons
     cursors = this.input.keyboard.createCursorKeys();
     up = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
     down = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S);
     left = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
     right = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
 
+    this.input.gamepad.on('down', function (pad, button, index) {
+        pad.setAxisThreshold(0.15);
+        gamepad = pad;
+    }, this);
+
     let music = this.sound.add('dungeon');
-    music.play();
+    //music.play();
 
     camera = this.cameras.main;
     camera.startFollow(wizard);
@@ -358,6 +397,11 @@ function create ()
 
 function update (time, delta)
 {
+    if (!gamepad)
+    {
+        return
+    }
+
     if(goblinCount === 0 && respawning === false)
     {
         lastGoblinSpawn = time;
@@ -369,11 +413,13 @@ function update (time, delta)
         respawning = false;
         goblin = goblins.get();
         goblin.spawn(Math.floor((Math.random() * 100) + 499), Math.floor((Math.random() * 100) + 399));
+        this.physics.add.collider(wizard, goblin);
     }
 
     if (!wizard.hasShot)
     {
-        if(isLeft() && isUp()) {
+        //keyboard controls
+        /*if(isLeft() && isUp()) {
             wizard.setVelocityX(Math.cos(Math.PI / 4) * wizardSpeed * -1);
             wizard.setVelocityY(Math.sin(Math.PI / 4) * wizardSpeed * -1);
             wizard.anims.play('left', true);
@@ -417,6 +463,70 @@ function update (time, delta)
             wizard.setVelocityX(0);
             wizard.setVelocityY(0);
             wizard.anims.play('down', true);
+        }*/
+
+        //gamepad controls
+        //console.log(this.input.gamepad.leftStick.x);
+
+        /*var pad = this.input.gamepad.getPad(0);
+        var axisH = pad.axes[0].getValue();
+        var axisV = pad.axes[1].getValue();
+        var shotX = pad.axes[2].getValue();
+        var shotY = pad.axes[3].getValue();
+        var r1 = pad.buttons[5];
+
+        if(axisH < 0) {
+            wizard.setVelocityX(wizardSpeed * axisH);
+            wizard.anims.play('left', true);
+        }
+        else if(axisH > 0) {
+            wizard.setVelocityX(wizardSpeed * axisH);
+            wizard.anims.play('right', true);
+        }
+        else if(axisH === 0){
+            wizard.setVelocityX(0);
+            wizard.anims.play('down', true);
+        }
+
+        if(axisV < 0 && (axisH < 0.2 && axisH > -0.2)) {
+            wizard.setVelocityY(wizardSpeed * axisV);
+            wizard.anims.play('up', true);
+        }
+        else if(axisV < 0) {
+            wizard.setVelocityY(wizardSpeed * axisV);
+        }
+        else if(axisV > 0) {
+            wizard.setVelocityY(wizardSpeed * axisV);
+        }
+        else if(axisV === 0) {
+            wizard.setVelocityY(0);
+        }*/
+
+        if(gamepad.leftStick.x < 0) {
+            wizard.setVelocityX(wizardSpeed * gamepad.leftStick.x);
+            wizard.anims.play('left', true);
+        }
+        else if(gamepad.leftStick.x > 0) {
+            wizard.setVelocityX(wizardSpeed * gamepad.leftStick.x);
+            wizard.anims.play('right', true);
+        }
+        else if(gamepad.leftStick.x === 0){
+            wizard.setVelocityX(0);
+            wizard.anims.play('down', true);
+        }
+
+        if(gamepad.leftStick.y < 0 && (gamepad.leftStick.x < 0.2 && gamepad.leftStick.x > -0.2)) {
+            wizard.setVelocityY(wizardSpeed * gamepad.leftStick.y);
+            wizard.anims.play('up', true);
+        }
+        else if(gamepad.leftStick.y < 0) {
+            wizard.setVelocityY(wizardSpeed * gamepad.leftStick.y);
+        }
+        else if(gamepad.leftStick.y > 0) {
+            wizard.setVelocityY(wizardSpeed * gamepad.leftStick.y);
+        }
+        else if(gamepad.leftStick.y === 0) {
+            wizard.setVelocityY(0);
         }
     }
 
@@ -425,6 +535,7 @@ function update (time, delta)
         wizard.hasShot = false;
     }
 
+    //mouse click to fire
     if (this.input.activePointer.isDown && time > lastFired) {
         wizard.setVelocityX(0);
         wizard.setVelocityY(0);
@@ -439,6 +550,29 @@ function update (time, delta)
             fireball.shoot(wizard, this.input.activePointer.x, this.input.activePointer.y);
 
             if(goblinCount > 0) {
+                this.physics.add.collider(goblins, fireball, enemyHitCallback);
+            }
+
+            lastFired = time + fireball.cooldown;
+        }
+        wizard.anims.play('cast', true);
+    }
+
+    //gamepad fire controls
+    if (gamepad.R1 && time > lastFired) {
+        wizard.setVelocityX(0);
+        wizard.setVelocityY(0);
+        wizard.hasShot = true;
+        wizard.shotTime = time;
+        wizard.anims.play('cast', true);
+
+        var fireball = fireballs.get();
+
+        if (fireball)
+        {
+            fireball.shootGamepad(wizard, gamepad.rightStick.x, gamepad.rightStick.y);
+
+            if(goblinCount > 0) {
             this.physics.add.collider(goblins, fireball, enemyHitCallback);
             }
 
@@ -446,6 +580,8 @@ function update (time, delta)
         }
         wizard.anims.play('cast', true);
     }
+
+
 }
 
 function enemyHitCallback(enemyHit, spellHit)
